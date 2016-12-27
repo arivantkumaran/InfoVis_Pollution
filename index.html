@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Final Project</title>
+    <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+    <script type="text/javascript" src="colorbrewer.min.js"></script>
+    <style type="text/css">
+        /* On mouse hover, lighten state color */
+        
+        path:hover {
+            fill-opacity: .7;
+        }
+        
+        .legendTitle {
+            font-family: "sans-serif";
+            font-size: 24px;
+            color: #666;
+            margin-left: 100px;
+        }
+        
+        #legend {
+            width: 500px;
+            position: absolute;
+            left: 400px;
+            top: 550px;
+        }
+        
+        li.key {
+            float: left;
+            border-top-width: 15px;
+            border-top-style: solid;
+            font-family: "Oxygen";
+            color: #666;
+            font-size: 16px;
+            width: 10%;
+            padding-left: 0;
+            padding-right: 0;
+            list-style: none;
+        }
+        
+        .slider {
+            position: relative;
+            top: 40px;
+            left: 40px;
+        }
+        
+        .slider-tray {
+            position: absolute;
+            width: 100%;
+            height: 6px;
+            border: solid 1px #ccc;
+            border-top-color: #aaa;
+            border-radius: 4px;
+            background-color: #f0f0f0;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+        }
+        
+        .slider-handle {
+            position: absolute;
+            top: 3px;
+        }
+        
+        .slider-handle-icon {
+            width: 14px;
+            height: 14px;
+            border: solid 1px #aaa;
+            position: absolute;
+            border-radius: 10px;
+            background-color: #fff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+            top: -7px;
+            left: -7px;
+        }
+        
+        .track-overlay {
+            pointer-events: stroke;
+            stroke-width: 50px;
+            cursor: crosshair;
+        }
+        
+        .axis path,
+        .axis line {
+            fill: none;
+            stroke: grey;
+            stroke-width: 1;
+            shape-rendering: crispEdges;
+        }
+        
+        .NO2_line {
+            stroke: red;
+            fill: none;
+        }
+        
+        .O3_line {
+            stroke: blue;
+            fill: none;
+        }
+        
+        .SO2_line {
+            stroke: green;
+            fill: none;
+        }
+        
+        .CO_line {
+            stroke: purple;
+            fill: none;
+        }
+        
+        .chartTitle {
+            font: 16px sans-serif;
+        }
+        
+        .track,
+        .track-inset,
+        .track-overlay {
+            stroke-linecap: round;
+        }
+        
+        .track {
+            stroke: #000;
+            stroke-opacity: 0.3;
+            stroke-width: 10px;
+        }
+        
+        .track-inset {
+            stroke: #ddd;
+            stroke-width: 8px;
+        }
+        
+        .track-overlay {
+            pointer-events: stroke;
+            stroke-width: 50px;
+            cursor: crosshair;
+        }
+        
+        .handle {
+            fill: #fff;
+            stroke: #000;
+            stroke-opacity: 0.5;
+            stroke-width: 1.25px;
+        }
+        
+        div.tooltip {
+            position: absolute;
+            text-align: center;
+            width: 60px;
+            height: 28px;
+            padding: 2px;
+            font: 12px sans-serif;
+            background: white;
+            border: 0px;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+    <table>
+        <tr>
+            <td rowspan=2>
+                <div id="map">
+                    <div id="legend"></div>
+                </div>
+            </td>
+            <td valign="top">
+                <div class="pollutionChartTitle" id="pollutionChartTitle" align="center"></div>
+                <div class="pollutionChart" id="pollutionChart"></div>
+            </td>
+        </tr>
+        <tr>
+            <td valign="top">
+                <div class="aqiChartTitle" id="aqiChartTitle" align="center"></div>
+                <div class="aqiChart" id="aqiChart"></div>
+            </td>
+        </tr>
+    </table>
+    <div class="slider" id="slider"></div>
+    <script type="text/javascript">
+        //Width and height
+        var w = 900;
+        var h = 620;
+        //var inputFile = "pollutionData.csv";
+        var inputFile = "p.csv";
+
+        var minNO2_AQI = 1.07127429806;
+        var maxNO2_AQI = 48.031152648;
+        var minO3_AQI = 15.2067039106;
+        var maxO3_AQI = 66.2643171806;
+        var minSO2_AQI = 0.0879120879121;
+        var maxSO2_AQI = 30.8979591837;
+        var minCO_AQI = 0.0903614457831;
+        var maxCO_AQI = 18.5631868132;
+        var minNO2 = 0.760512117089;
+        var maxNO2 = 31.5158731429;
+        var minO3 = 0.010306575419;
+        var maxO3 = 0.0443419891697;
+        var minSO2 = 0;
+        var maxSO2 = 9.93353229023;
+        var minCO = 0.00242947891566;
+        var maxCO = 1.22156233333;
+
+
+        var minYear = 2000;
+        var maxYear = 2016;
+        var year = 2010;
+        var field = "O3";
+        var min = minO3;
+        var max = maxO3;
+
+        function updateTitle(pollutant, year) {
+            document.getElementById("legend").innerHTML = "<span class = legendTitle>" + pollutant + " (" + year + ")</span>";
+        }
+
+        var margin = {
+            top: 20,
+            right: 20,
+            bottom: 30,
+            left: 50
+        };
+        updateTitle(field, minYear);
+        //Define map projection
+        var projection = d3.geo.albersUsa()
+            .translate([w / 2, h / 2])
+            .scale([1000]);
+
+        //Define path generator
+        var path = d3.geo.path()
+            .projection(projection);
+
+        //Colors taken from colorbrewer.js, included in the D3 download
+        var blues = d3.scale.quantize()
+            .range(colorbrewer.Blues[9]);
+        var greens = d3.scale.quantize()
+            .range(colorbrewer.Greens[9]);
+        var reds = d3.scale.quantize()
+            .range(colorbrewer.Reds[9]);
+        var oranges = d3.scale.quantize()
+            .range(colorbrewer.Oranges[9]);
+        var purples = d3.scale.quantize()
+            .range(colorbrewer.Purples[9]);
+        var greys = d3.scale.quantize()
+            .range(colorbrewer.Greys[9]);
+        var mapColors = [reds, blues, greens, purples];
+        var legendColors = blues;
+        var currentColor = legendColors;
+        //Create SVG element
+        var svg = d3.select('#map')
+            .append("svg")
+            .attr("width", w)
+            .attr("height", h)
+            .append("g");
+        //backdrop of color
+        var background = svg.append("rect")
+            .attr("id", "backgroundRect")
+            .attr("width", "100%")
+            .attr("height", "100%")
+            .attr("x", 0)
+            .attr("y", 0)
+            //.attr("fill", "#DAC99A")
+            .attr("fill", "#CCC")
+
+        svg.append("text")
+            .attr("class", "title")
+            .attr("x", w / 2)
+            .attr("y", 0 - (margin.top / 2))
+            .attr("text-anchor", "middle")
+            .text("Testing");
+
+        var legend = d3.select('#legend')
+            .append('ul')
+            .attr('class', 'list-inline');
+
+        //container for all buttons
+        var allButtons = svg.append("g")
+            .attr("id", "allButtons")
+
+        //fontawesome button labels
+        var labels = ['NO2', 'O3', 'SO2', 'CO']; //, 'NO2 AQI', 'O3 AQI', 'SO2 AQI', 'CO AQI'];
+
+        //colors for different button states 
+        var defaultColor = "#7777BB"
+        var hoverColor = "#0000ff"
+        var pressedColor = "#000077"
+
+        function updateMinMax() {
+            var yearIndex = year - minYear;
+            console.log(field);
+            console.log(year);
+            console.log(yearIndex);
+            if (field === "NO2") {
+                min = minNO2;
+                max = maxNO2;
+            } else if (field === "O3") {
+                min = minO3;
+                max = maxO3;
+            } else if (field === "SO2") {
+                min = minSO2;
+                max = maxSO2;
+            } else if (field === "CO") {
+                min = minCO;
+                max = maxCO;
+            } else if (field === "NO2_AQI") {
+                min = minNO2_AQI;
+                max = maxNO2_AQI;
+            } else if (field === "O3_AQI") {
+                min = minO3_AQI;
+                max = maxO3_AQI;
+            } else if (field === "SO2_AQI") {
+                min = minSO2_AQI;
+                max = maxSO2_AQI;
+            } else if (field === "CO_AQI") {
+                min = minCO_AQI;
+                max = maxCO_AQI;
+            }
+            //console.log("Min/Max::" + min + "::" + max);
+        }
+        var statesWithNoData = ["Montana", "Nebraska", "Mississippi", "West Virginia", "Vermont"];
+
+        //groups for each button (which will hold a rect and text)
+        var buttonGroups = allButtons.selectAll("g.button")
+            .data(labels)
+            .enter()
+            .append("g")
+            .attr("class", "button")
+            .style("cursor", "pointer")
+            .on("click", function(d, i) {
+                updateButtonColors(d3.select(this), d3.select(this.parentNode))
+                field = labels[i];
+                updateMinMax();
+                currentColor = mapColors[i];
+                updateTitle(field, year);
+                updateData(inputFile, currentColor);
+            })
+            .on("mouseover", function() {
+                if (d3.select(this).select("rect").attr("fill") != pressedColor) {
+                    d3.select(this)
+                        .select("rect")
+                        .attr("fill", hoverColor);
+                }
+            })
+            .on("mouseout", function() {
+                if (d3.select(this).select("rect").attr("fill") != pressedColor) {
+                    d3.select(this)
+                        .select("rect")
+                        .attr("fill", defaultColor);
+                }
+            })
+
+        var bWidth = 190; //button width
+        var bHeight = 25; //button height
+        var bSpace = 20; //space between buttons
+        var x0 = 20; //x offset
+        var y0 = 10; //y offset
+        var y1 = y0 + bHeight + bSpace; //y1 offset
+        //adding a rect to each toggle button group
+        //rx and ry give the rect rounded corner
+        buttonGroups.append("rect")
+            .attr("class", "buttonRect")
+            .attr("width", bWidth)
+            .attr("height", bHeight)
+            .attr("x", function(d, i) {
+                return x0 + (bWidth + bSpace) * i;
+            })
+            .attr("y", y0)
+            .attr("rx", 5) //rx and ry give the buttons rounded corners
+            .attr("ry", 5)
+            .attr("fill", defaultColor)
+
+        //adding text to each toggle button group, centered 
+        //within the toggle button rect
+        buttonGroups.append("text")
+            .attr("class", "buttonText")
+            .attr("font-family", "FontAwesome")
+            .attr("x", function(d, i) {
+                return x0 + (bWidth + bSpace) * i + bWidth / 2;
+            })
+            .attr("y", y0 + bHeight / 2)
+            .attr("text-anchor", "middle")
+            .attr("dominant-baseline", "central")
+            .attr("fill", "white")
+            .text(function(d) {
+                return d;
+            })
+
+        function updateButtonColors(button, parent) {
+            parent.selectAll("rect")
+                .attr("fill", defaultColor)
+
+            button.select("rect")
+                .attr("fill", pressedColor)
+        } //backdrop of color
+        var background = svg.append("rect")
+            .attr("id", "backgroundRect")
+            .attr("width", "100%")
+            .attr("height", "100%")
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("fill", "#DAC99A")
+
+        //container for all buttons
+        var allButtons = svg.append("g")
+            .attr("id", "allButtons")
+
+        //fontawesome button labels
+        //var files = ['no2.csv', 'o3.csv', 'so2.csv', 'co.csv'];
+
+        //colors for different button states 
+        var defaultColor = "#7777BB"
+        var hoverColor = "#0000ff"
+        var pressedColor = "#000077"
+
+        //groups for each button (which will hold a rect and text)
+        var buttonGroups = allButtons.selectAll("g.button")
+            .data(labels)
+            .enter()
+            .append("g")
+            .attr("class", "button")
+            .style("cursor", "pointer")
+            .on("click", function(d, i) {
+                updateButtonColors(d3.select(this), d3.select(this.parentNode))
+                field = labels[i];
+                updateMinMax();
+                currentColor = mapColors[i];
+                updateTitle(field, year);
+                updateData(inputFile, currentColor);
+            })
+            .on("mouseover", function() {
+                if (d3.select(this).select("rect").attr("fill") != pressedColor) {
+                    d3.select(this)
+                        .select("rect")
+                        .attr("fill", hoverColor);
+                }
+            })
+            .on("mouseout", function() {
+                if (d3.select(this).select("rect").attr("fill") != pressedColor) {
+                    d3.select(this)
+                        .select("rect")
+                        .attr("fill", defaultColor);
+                }
+            })
+
+        var bWidth = 40; //button width
+        var bHeight = 25; //button height
+        var bSpace = 10; //space between buttons
+        var x0 = 20; //x offset
+        var y0 = 10; //y offset
+
+        //adding a rect to each toggle button group
+        //rx and ry give the rect rounded corner
+        buttonGroups.append("rect")
+            .attr("class", "buttonRect")
+            .attr("width", bWidth)
+            .attr("height", bHeight)
+            .attr("x", function(d, i) {
+                return x0 + (bWidth + bSpace) * i;
+            })
+            .attr("y", y0)
+            .attr("rx", 5) //rx and ry give the buttons rounded corners
+            .attr("ry", 5)
+            .attr("fill", defaultColor)
+
+        //adding text to each toggle button group, centered 
+        //within the toggle button rect
+        buttonGroups.append("text")
+            .attr("class", "buttonText")
+            .attr("font-family", "FontAwesome")
+            .attr("x", function(d, i) {
+                return x0 + (bWidth + bSpace) * i + bWidth / 2;
+            })
+            .attr("y", y0 + bHeight / 2)
+            .attr("text-anchor", "middle")
+            .attr("dominant-baseline", "central")
+            .attr("fill", "white")
+            .text(function(d) {
+                return d;
+            })
+
+        var formats = {
+            percent: d3.format('%')
+        };
+
+        var sliderWidth = w * .9;
+
+        var sliderX = d3.scale.linear()
+            .domain([minYear, maxYear])
+            .range([0, sliderWidth])
+            .clamp(true);
+        var dispatch = d3.dispatch("sliderChange");
+        var slider = d3.select(".slider")
+            .style("width", sliderWidth + "px");
+        var sliderTray = slider.append("div")
+            .attr("class", "slider-tray");
+        var sliderHandle = slider.append("div")
+            .attr("class", "slider-handle");
+        sliderHandle.append("div")
+            .attr("class", "slider-handle-icon");
+
+        slider.call(d3.behavior.drag()
+            .on("dragstart", function() {
+                dispatch.sliderChange(sliderX.invert(d3.mouse(sliderTray.node())[0]));
+                d3.event.sourceEvent.preventDefault();
+            })
+            .on("drag", function() {
+                dispatch.sliderChange(sliderX.invert(d3.mouse(sliderTray.node())[0]));
+            }));
+        dispatch.on("sliderChange.slider", function(value) {
+            sliderHandle.style("left", sliderX(value) + "px");
+            var yearFloor = Math.floor(value);
+            var diff = value - yearFloor;
+            year = diff < 0.5 ? yearFloor : yearFloor + 1;
+            updateTitle(field, year);
+            updateData(inputFile, currentColor);
+        });
+
+
+        // Chart
+        chartWidth = 500 - margin.left - margin.right,
+            chartHeight = 300 - margin.top - margin.bottom
+
+        var chart = d3.select(".pollutionChart")
+            .append("svg")
+            .attr("width", chartWidth + margin.left + margin.right)
+            .attr("height", chartHeight + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        var aqiChart = d3.select(".aqiChart")
+            .append("svg")
+            .attr("width", chartWidth + margin.left + margin.right)
+            .attr("height", chartHeight + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        var NO2_line = d3.svg.line()
+            .x(function(d) {
+                return x(d.year);
+            })
+            .y(function(d) {
+                return y(d.NO2);
+            });
+
+        var O3_line = d3.svg.line()
+            .x(function(d) {
+                return x(d.year);
+            })
+            .y(function(d) {
+                return y(d.O3);
+            });
+
+        var SO2_line = d3.svg.line()
+            .x(function(d) {
+                return x(d.year);
+            })
+            .y(function(d) {
+                return y(d.SO2);
+            });
+
+        var CO_line = d3.svg.line()
+            .x(function(d) {
+                return x(d.year);
+            })
+            .y(function(d) {
+                return y(d.CO);
+            });
+
+        var NO2_AQI_line = d3.svg.line()
+            .x(function(d) {
+                return x(d.year);
+            })
+            .y(function(d) {
+                return y(d.NO2_AQI);
+            });
+
+        var O3_AQI_line = d3.svg.line()
+            .x(function(d) {
+                return x(d.year);
+            })
+            .y(function(d) {
+                return y(d.O3_AQI);
+            });
+
+        var SO2_AQI_line = d3.svg.line()
+            .x(function(d) {
+                return x(d.year);
+            })
+            .y(function(d) {
+                return y(d.SO2_AQI);
+            });
+
+        var CO_AQI_line = d3.svg.line()
+            .x(function(d) {
+                return x(d.year);
+            })
+            .y(function(d) {
+                return y(d.CO_AQI);
+            });
+
+
+        var x = d3.time.scale()
+            .rangeRound([0, chartWidth]);
+
+        var y = d3.scale.linear()
+            .rangeRound([chartHeight, 0]);
+
+
+        function drawLines(statename) {
+            var title = "(Parts Per Million)"
+            d3.select("div.pollutionChart").html("");
+            d3.select("div.aqiChart").html("");
+            document.getElementById("pollutionChartTitle").innerHTML = "<span class = chartTitle>" + statename + " Pollution " + title + "</span>";
+            document.getElementById("aqiChartTitle").innerHTML = "<span class = chartTitle>" + statename + " AQI " + title + "</span>";
+            chart = d3.select(".pollutionChart")
+                .append("svg")
+                .attr("width", chartWidth + margin.left + margin.right)
+                .attr("height", chartHeight + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            aqiChart = d3.select(".aqiChart")
+                .append("svg")
+                .attr("width", chartWidth + margin.left + margin.right)
+                .attr("height", chartHeight + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            d3.csv(inputFile, function(data) {
+                data.year = +data.year;
+                data.NO2 = +data.NO2;
+                data.O3 = +data.O3;
+                data.SO2 = +data.SO2;
+                data.CO = +data.CO;
+                data.NO2_AQI = +data.NO2_AQI;
+                data.O3_AQI = +data.O3_AQI;
+                data.SO2_AQI = +data.SO2_AQI;
+                data.CO_AQI = +data.CO_AQI;
+                return data;
+            }, function(error, data) {
+                if (error) throw error;
+                var reduceData = function(stateclick) {
+                    var ans = [],
+                        i;
+                    for (i = 0; i < data.length; i += 1) {
+                        if (data[i].state === stateclick) {
+                            ans.push(data[i]);
+                        }
+                    }
+                    //console.log(ans);
+                    return ans;
+                };
+
+                var dispData = reduceData(statename);
+
+                x.domain(d3.extent(dispData, function(d) {
+                    return d.year;
+                }));
+                y.domain([0, Math.max(
+                    d3.max(dispData, function(d) {
+                        return d.NO2;
+                    }),
+                    d3.max(dispData, function(d) {
+                        return d.O3;
+                    }),
+                    d3.max(dispData, function(d) {
+                        return d.SO2;
+                    }),
+                    d3.max(dispData, function(d) {
+                        return d.CO;
+                    })
+                )]);
+
+                var yAxis = d3.svg.axis()
+                    .scale(y)
+                    .orient("left");
+
+                var xAxis = d3.svg.axis()
+                    .scale(x)
+                    .tickFormat(d3.format("d"))
+                    .orient("bottom");
+
+                chart.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate(0, 0)")
+                    .call(yAxis);
+
+                chart.append("g")
+                    .attr("class", "x axis")
+                    .attr("transform", "translate(0," + chartHeight + ")")
+                    .call(xAxis);
+                chart.append("path")
+                    .attr("class", "line")
+                    .attr("class", "NO2_line")
+                    .attr("d", NO2_line(dispData));
+
+                chart.append("path")
+                    .attr("class", "line")
+                    .attr("class", "O3_line")
+                    .attr("d", O3_line(dispData));
+
+                chart.append("path")
+                    .attr("class", "line")
+                    .attr("class", "SO2_line")
+                    .attr("d", SO2_line(dispData));
+
+                chart.append("path")
+                    .attr("class", "line")
+                    .attr("class", "CO_line")
+                    .attr("d", CO_line(dispData));
+
+                y.domain([0, Math.max(
+                    d3.max(dispData, function(d) {
+                        return d.NO2_AQI;
+                    }),
+                    d3.max(dispData, function(d) {
+                        return d.O3_AQI;
+                    }),
+                    d3.max(dispData, function(d) {
+                        return d.SO2_AQI;
+                    }),
+                    d3.max(dispData, function(d) {
+                        return d.CO_AQI;
+                    })
+                )]);
+
+                var yAxis = d3.svg.axis()
+                    .scale(y)
+                    .orient("left");
+
+                aqiChart.append("g")
+                    .attr("class", "y axis")
+                    .attr("transform", "translate(0, 0)")
+                    .call(yAxis);
+
+                aqiChart.append("g")
+                    .attr("class", "x axis")
+                    .attr("transform", "translate(0," + chartHeight + ")")
+                    .call(xAxis);
+                aqiChart.append("path")
+                    .attr("class", "line")
+                    .attr("class", "NO2_line")
+                    .attr("d", NO2_AQI_line(dispData));
+
+                aqiChart.append("path")
+                    .attr("class", "line")
+                    .attr("class", "O3_line")
+                    .attr("d", O3_AQI_line(dispData));
+
+                aqiChart.append("path")
+                    .attr("class", "line")
+                    .attr("class", "SO2_line")
+                    .attr("d", SO2_AQI_line(dispData));
+
+                aqiChart.append("path")
+                    .attr("class", "line")
+                    .attr("class", "CO_line")
+                    .attr("d", CO_AQI_line(dispData));
+
+  var padding = 2;
+  var rect = self.chart.insert("rect", "topText")
+      .attr("x", margin.left - 10)
+      .attr("y", margin.top - 20)
+      .attr("width", 60 + (padding*2))
+      .attr("height", 80 + (padding*2))
+      .style("fill", "white")
+      .attr('stroke', 'black');
+
+    var topText = chart.append('text')
+      .text('NO2 (b)')
+      .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+      .style('fill', 'red');
+    chart.append('text')
+      .text('O3')
+      .attr("transform", "translate(" + margin.left + "," + (margin.top+20) + ")")
+      .style('fill', 'blue');
+    chart.append('text')
+      .text('SO2')
+      .attr("transform", "translate(" + margin.left + "," + (margin.top+40) + ")")
+      .style('fill', 'green');
+    chart.append('text')
+      .text('CO')
+      .attr("transform", "translate(" + margin.left + "," + (margin.top+60) + ")")
+      .style('fill', 'purple');
+
+
+            });
+        }
+
+        function updateButtonColors(button, parent) {
+            parent.selectAll("rect")
+                .attr("fill", defaultColor)
+
+            button.select("rect")
+                .attr("fill", pressedColor)
+        }
+
+        function loadData(csvFile, color) {
+            console.log(csvFile);
+            //Load in agriculture data
+            d3.csv(csvFile, function(data) {
+                //Set input domain for color scale
+                color.domain([min, max]);
+                //[a, b] = color.domain();
+                //console.log(min + "--" + max);
+                //console.log(a + "--" + b);
+                //.range(color);
+                //d3.min(data, function(d) {
+                //   return  parseFloat(d[field]) || Infinity;
+                //}),
+                //d3.max(data, function(d) {
+                //    return  parseFloat(d[field]) || -Infinity;
+                //})
+                //Load in GeoJSON data
+                d3.json("us-states.json", function(json) {
+                    //Merge the ag. data and GeoJSON
+                    //Loop through once for each ag. data value
+                    for (var i = 0; i < data.length; i++) {
+                        var dataYear = +data[i].year;
+                        if (dataYear == year) {
+                            //Grab state name
+                            var dataState = data[i].state;
+                            //Grab data value, and convert from string to float
+                            var dataValue = parseFloat(data[i][field]);
+                            //console.log(dataState+"::"+dataValue+"::"+dataYear);
+                            //Find the corresponding state inside the GeoJSON
+                            for (var j = 0; j < json.features.length; j++) {
+                                var jsonState = json.features[j].properties.name;
+                                if (dataState == jsonState) {
+                                    //Copy the data value into the JSON
+                                    json.features[j].properties.value = dataValue;
+                                    //Stop looking through the JSON
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    //Bind data and create one path per GeoJSON feature
+                    svg.selectAll("path")
+                        .data(json.features)
+                        .enter()
+                        .append("path")
+                        .attr("d", path)
+                        .style("fill", function(d) {
+                            //Get data value
+                            var value = d.properties.value;
+                            //console.log(d);
+                            if (!isNaN(value)) {
+                                //If value exists…
+                                //console.log(value +"::"+color(value));
+                                return color(value);
+                            } else {
+                                //If value is undefined…
+                                return "#000";
+                            }
+                        })
+                        .on("click", function(d) {
+                            var state = d.properties.name;
+                            console.log(state);
+                            if (statesWithNoData.indexOf(state) == -1) {
+                                drawLines(state);
+                            }
+                        });
+                });
+                d3.select('#legend')
+                    .selectAll('ul')
+                    .remove();
+
+                // build the map legend
+                var legend = d3.select('#legend')
+                    .append('ul')
+                    .attr('class', 'list-inline');
+
+                var keys = legend.selectAll('li.key')
+                    .data(color.range());
+
+		var step = (Math.ceil(max).toFixed(2) - Math.floor(min).toFixed(2)) / 8.0;
+		var step1 =  Math.floor(min).toFixed(2);
+		var step2 = (Math.floor(min) + step).toFixed(2);
+		var step3 = (Math.floor(min) + 2* step).toFixed(2);
+		var step4 = (Math.floor(min) + 3* step).toFixed(2);
+		var step5 = (Math.floor(min) + 4* step).toFixed(2);
+		var step6 = (Math.floor(min) + 5* step).toFixed(2);
+		var step7 = (Math.floor(min) + 6* step).toFixed(2);
+		var step8 = (Math.floor(min) + 7* step).toFixed(2);
+                var legend_items = [step1, step2, step3, step4, step5, step6, step7, step8, Math.ceil(max)];
+
+                keys.enter().append('li')
+                    .attr('class', 'key')
+                    .style('border-top-color', String)
+                    .text(function(d, i) {
+                        return legend_items[i];
+                    });
+            });
+        }
+
+        function updateData(csvFile, color) {
+            legendColors = color;
+            var keys = legend.selectAll('li.key')
+                .data(legendColors.range());
+
+            keys.enter().append('li')
+                .attr('class', 'key')
+                .style('border-top-color', String)
+                .text(function(d) {
+                    var r = legendColors.invertExtent(d);
+                    return formats.percent(r[0]);
+                });
+
+            d3.csv(csvFile, function(data) {
+
+                //Set input domain for color scale
+                //color.domain([min, max]);
+                color.domain([min, max]);
+                //color.domain([
+                //    d3.min(data, function(d) {
+                //        return  parseFloat(d[field]) || Infinity;
+                //    }),
+                //    d3.max(data, function(d) {
+                //        return  parseFloat(d[field]) || -Infinity;
+                //    })
+                //]);
+                //Load in GeoJSON data
+                d3.json("us-states.json", function(json) {
+                    //Merge the ag. data and GeoJSON
+                    //Loop through once for each ag. data value
+                    for (var i = 0; i < data.length; i++) {
+                        var dataYear = +data[i].year;
+                        if (dataYear == year) {
+                            //Grab state name
+                            var dataState = data[i].state;
+                            //Grab data value, and convert from string to float
+                            var dataValue = parseFloat(data[i][field]);
+                            //console.log(dataState + "::" + dataValue + "::" + dataYear);
+                            //Find the corresponding state inside the GeoJSON
+                            for (var j = 0; j < json.features.length; j++) {
+                                var jsonState = json.features[j].properties.name;
+                                if (dataState == jsonState) {
+                                    //Copy the data value into the JSON
+                                    json.features[j].properties.value = dataValue;
+                                    //Stop looking through the JSON
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    //Bind data and create one path per GeoJSON feature
+                    svg.selectAll("path")
+                        .data(json.features)
+                        //.enter()
+                        //.append("path")
+                        .attr("d", path)
+
+                    .style("fill", function(d) {
+                        //Get data value
+                        var value = d.properties.value;
+
+                        if (!isNaN(value)) {
+                            //If value exists…
+                            //console.log(value + "::" + color(value))
+                            return color(value);
+                        } else {
+                            //If value is undefined…
+                            return "#000";
+                        }
+                    });
+                });
+                d3.select('#legend')
+                    .selectAll('ul')
+                    .remove();
+
+                // build the map legend
+                var legend = d3.select('#legend')
+                    .append('ul')
+                    .attr('class', 'list-inline');
+
+                var keys = legend.selectAll('li.key')
+                    .data(color.range());
+
+                var step = (Math.ceil(max).toFixed(2) - Math.floor(min).toFixed(2)) / 8.0;
+                var step1 =  Math.floor(min).toFixed(2);
+                var step2 = (Math.floor(min) + step).toFixed(2);
+                var step3 = (Math.floor(min) + 2* step).toFixed(2);
+                var step4 = (Math.floor(min) + 3* step).toFixed(2);
+                var step5 = (Math.floor(min) + 4* step).toFixed(2);
+                var step6 = (Math.floor(min) + 5* step).toFixed(2);
+                var step7 = (Math.floor(min) + 6* step).toFixed(2);
+                var step8 = (Math.floor(min) + 7* step).toFixed(2);
+                var legend_items = [step1, step2, step3, step4, step5, step6, step7, step8, Math.ceil(max)];
+
+                keys.enter().append('li')
+                    .attr('class', 'key')
+                    .style('border-top-color', String)
+                    .text(function(d, i) {
+                        return legend_items[i];
+                    });
+
+            });
+        }
+        loadData(inputFile, currentColor);
+        drawLines("Missouri");
+    </script>
+</body>
+
+</html>
+
