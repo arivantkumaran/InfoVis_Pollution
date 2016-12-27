@@ -1,6 +1,3 @@
-# John-Arivan
-Final project repo for: John Henroid	(jhenroid@wustl.edu) and Arivan Thillaikumaran	(a.thillaikumaran@wustl.edu)
-
 Data: p.csv
 Contains all pollutant and AQI data
 
